@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Repository:
+    Type: String
+    Description: GitHub Repository URL
+
+  OauthToken:
+    Type: String
+    Description: GitHub Repository URL
+    NoEcho: true
+  Domain:
+    Type: String
+    Description: Domain name to host application
+Resources:
+  AmplifyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - amplify.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: Amplify
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: "amplify:*"
+                Resource: "*"
+
+  AmplifyApp:
+    Type: "AWS::Amplify::App"
+    Properties:
+      Name: TeReciboApp
+      Repository: !Ref Repository
+      Description: Te Recibo app
+      OauthToken: !Ref OauthToken
+      BuildSpec: |-
+        version: 0.2
+        frontend:
+          phases:
+            preBuild:
+              commands:
+                - nvm install v14.16.1
+                - yarn install
+            build:
+              commands:
+                - yarn run build
+          cache:
+            paths:
+              - 'node_modules/**/*'
+          artifacts:
+            baseDirectory: public/
+            files:
+              - '**/*'
+      CustomRules:
+        - Source: /public/index.html
+          Target: /index.html
+          Status: "200"
+      IAMServiceRole: !GetAtt AmplifyRole.Arn
+
+  AmplifyBranch:
+    Type: AWS::Amplify::Branch
+    Properties:
+      BranchName: master
+      AppId: !GetAtt AmplifyApp.AppId
+      Description: Master Branch
+      EnableAutoBuild: true
+      Tags:
+        - Key: Name
+          Value: todo-master
+        - Key: Branch
+          Value: master
+Outputs:
+  DefaultDomain:
+    Value: !GetAtt AmplifyApp.DefaultDomain
+  MasterBranchUrl:
+    Value: !Join [ ".", [ !GetAtt AmplifyBranch.BranchName, !GetAtt AmplifyApp.DefaultDomain ]]
